@@ -10,6 +10,8 @@ from configparser import ConfigParser
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import requests
+
 logger = logging.getLogger("playlistSync")
 ch = logging.StreamHandler(sys.stdout)
 logger.addHandler(ch)
@@ -45,7 +47,6 @@ def get_ip(net_dev):
         raise NoIpError("ip execution failed: " + proc.stdout + " " + proc.stderr)
 
     reply = json.loads(proc.stdout)
-    current_ip = None
     for dev in reply:
         for addr in dev["addr_info"]:
             if addr.get("temporary", False) is True:
@@ -57,34 +58,22 @@ def get_ip(net_dev):
     raise NoIpError("no IP found")
 
 
-def update_ip(current_ip, old_ip, domain, password, template=None):
-    template = (
-        template
-        if template is not None
-        else "https://dyndns.strato.com/nic/update?hostname={domain}&myip={current_ip}"
-    )
-    command = [
-        "curl",
-        "--silent",
-        "--show-error",
-        "--user",
-        f"{domain}:{password}",
-        template.format(domain=domain, current_ip=current_ip, password=password),
-    ]
-    proc = subprocess.run(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8",
-    )
-    reply = proc.stdout + proc.stderr
+def update_ip(current_ip, domain, username, password, url):
+    try:
+        response = requests.get(
+            url,
+            params={"hostname": domain, "myip": current_ip,},
+            auth=(username, password),
+        )
+    except Exception as e:
+        raise IpUpdateError("IP update failed: " + str(e))
 
-    if proc.returncode != 0:
-        raise IpUpdateError("IP update failed: " + reply)
-
-    if "good" in reply:
+    if "good" in response.text:
         logger.info(f"updated IP to: {current_ip}")
-    elif "nochg" in reply:
+    elif "nochg" in response.text:
         logger.info(f"IP up to date: {current_ip}")
     else:
-        raise IpUpdateError("IP update failed: " + reply)
+        raise IpUpdateError("IP update failed: " + response.text)
 
 
 def main():
@@ -126,10 +115,10 @@ def main():
             try:
                 update_ip(
                     current_ip,
-                    old_ip,
                     domain=default_section["domain"],
+                    username=default_section["username"],
                     password=default_section["password"],
-                    template=default_section.get("template", None),
+                    url=default_section["url"],
                 )
             except IpUpdateError as e:
                 logger.error(e)
