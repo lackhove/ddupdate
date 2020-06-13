@@ -1,17 +1,18 @@
 #!/bin/env python
 
 import argparse
-import functools
-import re
+import json
+import logging
 import subprocess
+import sys
 import time
 from configparser import ConfigParser
 from datetime import datetime, timedelta
-
-# to enforce flushing, needed for journald
 from pathlib import Path
 
-print = functools.partial(print, flush=True)
+logger = logging.getLogger("playlistSync")
+ch = logging.StreamHandler(sys.stdout)
+logger.addHandler(ch)
 
 
 class NoIpError(Exception):
@@ -25,6 +26,7 @@ class IpUpdateError(Exception):
 def get_ip(net_dev):
     command = [
         "ip",
+        "-j",
         "-6",
         "addr",
         "list",
@@ -42,20 +44,17 @@ def get_ip(net_dev):
     if proc.returncode != 0:
         raise NoIpError("ip execution failed: " + proc.stdout + " " + proc.stderr)
 
-    reply = proc.stdout.splitlines(keepends=False)
-    reply = [l for l in reply if "inet6" in l]
-    reply = [l for l in reply if "temporary" not in l]
-    reply = [l for l in reply if "inet6 fc" not in l]
-    reply = [l for l in reply if "inet6 fd" not in l]
-    if len(reply) == 0:
-        raise NoIpError("no IP found")
+    reply = json.loads(proc.stdout)
+    current_ip = None
+    for dev in reply:
+        for addr in dev["addr_info"]:
+            if addr.get("temporary", False) is True:
+                continue
+            if addr["local"].startswith("fc") or addr["local"].startswith("fd"):
+                continue
+            return addr["local"]
 
-    match = re.search(r"(?P<ip_addr>(\w*:)+\w*)/\d+", reply[0])
-    if not match:
-        raise NoIpError("no IP found")
-
-    current_ip = match.group("ip_addr")
-    return current_ip
+    raise NoIpError("no IP found")
 
 
 def update_ip(current_ip, old_ip, domain, password, template=None):
@@ -81,18 +80,29 @@ def update_ip(current_ip, old_ip, domain, password, template=None):
         raise IpUpdateError("IP update failed: " + reply)
 
     if "good" in reply:
-        print(f"updated IP to: {current_ip}")
+        logger.info(f"updated IP to: {current_ip}")
     elif "nochg" in reply:
-        print(f"IP up to date: {current_ip}")
+        logger.info(f"IP up to date: {current_ip}")
     else:
         raise IpUpdateError("IP update failed: " + reply)
 
 
 def main():
     parser = argparse.ArgumentParser(description="update ipv6",)
+    parser.add_argument("--verbosity", "-v", type=int, choices=range(5), default=3)
     parser.add_argument("--config", type=Path, default=Path("config.ini"))
 
     args = parser.parse_args()
+
+    logger.setLevel(
+        [
+            logging.CRITICAL,
+            logging.ERROR,
+            logging.WARNING,
+            logging.INFO,
+            logging.DEBUG,
+        ][args.verbosity]
+    )
 
     config = ConfigParser()
     config.read(args.config)
@@ -105,8 +115,8 @@ def main():
         try:
             current_ip = get_ip(default_section["net_dev"])
         except NoIpError as e:
-            print(e)
-            print("sleeping for 1 minute")
+            logger.error(e)
+            logger.error("sleeping for 1 minute")
             time.sleep(60)
             continue
 
@@ -122,8 +132,8 @@ def main():
                     template=default_section.get("template", None),
                 )
             except IpUpdateError as e:
-                print(e)
-                print("sleeping for 10 minutes")
+                logger.error(e)
+                logger.error("sleeping for 10 minutes")
                 time.sleep(10 * 60)
                 continue
             old_ip = current_ip
