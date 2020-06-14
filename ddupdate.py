@@ -95,16 +95,16 @@ def main():
         ][args.verbosity]
     )
 
-    config = ConfigParser()
-    config.read(args.config)
-    default_section = config["DEFAULT"]
+    config_parser = ConfigParser()
+    config_parser.read(args.config)
+    config = config_parser[config_parser.sections()[0]]
 
     old_ip = None
     last_update = datetime(1970, 1, 1)
     while True:
 
         try:
-            current_ip = get_ip(default_section["net_dev"])
+            current_ip = get_ip(config["net_dev"])
         except NoIpError as e:
             logger.error(e)
             logger.error("sleeping for 1 minute")
@@ -117,10 +117,10 @@ def main():
             try:
                 update_ip(
                     current_ip,
-                    domain=default_section["domain"],
-                    username=default_section["username"],
-                    password=default_section["password"],
-                    url=default_section["url"],
+                    domain=config["domain"],
+                    username=config["username"],
+                    password=config["password"],
+                    url=config["url"],
                 )
             except IpUpdateError as e:
                 logger.error(e)
