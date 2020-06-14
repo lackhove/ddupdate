@@ -51,6 +51,8 @@ def get_ip(net_dev):
         for addr in dev["addr_info"]:
             if addr.get("temporary", False) is True:
                 continue
+            if "local" not in addr:
+                continue
             if addr["local"].startswith("fc") or addr["local"].startswith("fd"):
                 continue
             return addr["local"]
