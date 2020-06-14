@@ -6,4 +6,4 @@ RUN pip install --no-cache-dir requests
 
 COPY ddupdate.py ./
 
-CMD [ "python", "./ddupdate.py", "--config", "/ddupdate/config.ini" ]
+CMD [ "python", "-u", "./ddupdate.py", "--config", "/ddupdate/config.ini" ]
