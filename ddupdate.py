@@ -12,7 +12,7 @@ from pathlib import Path
 
 import requests
 
-logger = logging.getLogger("playlistSync")
+logger = logging.getLogger("ddupdate")
 ch = logging.StreamHandler(sys.stdout)
 logger.addHandler(ch)
 

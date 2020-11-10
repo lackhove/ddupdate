@@ -1,6 +1,6 @@
 # ddupdate - a tiny IPv6 dyndns updater
 
-ddupdate updates a dyndns IPv6 addresses.
+ddupdate updates dyndns IPv6 addresses.
  
 ## Config file 
 example `config.ini`:
