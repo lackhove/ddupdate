@@ -25,7 +25,7 @@ class IpUpdateError(Exception):
     pass
 
 
-def get_ip(net_dev):
+def get_ip(net_dev: str) -> str:
     command = [
         "ip",
         "-j",
@@ -60,7 +60,7 @@ def get_ip(net_dev):
     raise NoIpError("no IP found")
 
 
-def update_ip(current_ip, domain, username, password, url):
+def update_ip(current_ip: str, domain: str, username: str, password: str, url: str):
     try:
         response = requests.get(
             url,
