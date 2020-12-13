@@ -8,6 +8,7 @@ import sys
 import time
 from configparser import ConfigParser
 from datetime import datetime, timedelta
+from ipaddress import IPv6Address
 from pathlib import Path
 
 import requests
@@ -25,7 +26,7 @@ class IpUpdateError(Exception):
     pass
 
 
-def get_ip(net_dev: str) -> str:
+def get_ip(net_dev: str) -> IPv6Address:
     command = [
         "ip",
         "-j",
@@ -48,23 +49,25 @@ def get_ip(net_dev: str) -> str:
 
     reply = json.loads(proc.stdout)
     for dev in reply:
-        for addr in dev["addr_info"]:
-            if addr.get("temporary", False) is True:
+        for addr_info in dev["addr_info"]:
+            if addr_info.get("temporary", False) is True:
                 continue
-            if "local" not in addr:
+            if "local" not in addr_info:
                 continue
-            if addr["local"].startswith("fc") or addr["local"].startswith("fd"):
-                continue
-            return addr["local"]
+            addr = IPv6Address(addr_info["local"])
+            if addr.is_global:
+                return addr
 
     raise NoIpError("no IP found")
 
 
-def update_ip(current_ip: str, domain: str, username: str, password: str, url: str):
+def update_ip(
+    current_ip: IPv6Address, domain: str, username: str, password: str, url: str
+):
     try:
         response = requests.get(
             url,
-            params={"hostname": domain, "myip": current_ip,},
+            params={"hostname": domain, "myip": str(current_ip)},
             auth=(username, password),
         )
     except Exception as e:
@@ -79,7 +82,7 @@ def update_ip(current_ip: str, domain: str, username: str, password: str, url: s
 
 
 def main():
-    parser = argparse.ArgumentParser(description="update ipv6",)
+    parser = argparse.ArgumentParser(description="update ipv6")
     parser.add_argument("--verbosity", "-v", type=int, choices=range(5), default=3)
     parser.add_argument("--config", type=Path, default=Path("config.ini"))
 
