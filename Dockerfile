@@ -1,4 +1,9 @@
-FROM python:3.9
+FROM docker.io/python:3.9
+
+RUN apt-get update && apt-get install -y \
+    iproute2  \
+    && rm -rf /var/lib/apt/lists/*
+
 
 WORKDIR /ddupdate
 
